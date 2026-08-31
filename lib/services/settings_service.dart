@@ -1,0 +1,55 @@
+import 'package:shared_preferences/shared_preferences.dart';
+
+/// نوع نوتیفیکیشن
+enum NotificationType {
+  systemDefault('پیش‌فرض سیستم'),
+  sound('با صدا'),
+  vibration('فقط لرزش'),
+  silent('بی‌صدا');
+
+  const NotificationType(this.label);
+
+  final String label;
+}
+
+/// تنظیمات برنامه (ذخیره‌شده در SharedPreferences)
+class SettingsService {
+  SettingsService._();
+
+  static final SettingsService instance = SettingsService._();
+
+  static const String _keyEnabled = 'notify_enabled';
+  static const String _keyHour = 'notify_hour';
+  static const String _keyMinute = 'notify_minute';
+  static const String _keyType = 'notify_type';
+
+  /// آیا نوتیفیکیشن فعال است
+  bool notificationsEnabled = true;
+
+  /// ساعت نمایش نوتیفیکیشن (۲۴ ساعته)
+  int notifyHour = 9;
+  int notifyMinute = 0;
+
+  /// نوع نوتیفیکیشن
+  NotificationType notificationType = NotificationType.systemDefault;
+
+  Future<void> load() async {
+    final sp = await SharedPreferences.getInstance();
+    notificationsEnabled = sp.getBool(_keyEnabled) ?? true;
+    notifyHour = sp.getInt(_keyHour) ?? 9;
+    notifyMinute = sp.getInt(_keyMinute) ?? 0;
+    final typeName = sp.getString(_keyType);
+    notificationType = NotificationType.values.firstWhere(
+      (type) => type.name == typeName,
+      orElse: () => NotificationType.systemDefault,
+    );
+  }
+
+  Future<void> save() async {
+    final sp = await SharedPreferences.getInstance();
+    await sp.setBool(_keyEnabled, notificationsEnabled);
+    await sp.setInt(_keyHour, notifyHour.clamp(0, 23));
+    await sp.setInt(_keyMinute, notifyMinute.clamp(0, 59));
+    await sp.setString(_keyType, notificationType.name);
+  }
+}
