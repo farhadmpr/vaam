@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:persian_datetime_picker/persian_datetime_picker.dart';
 
 import 'pages/home_page.dart';
 import 'pages/loan_details_page.dart';
@@ -63,9 +64,15 @@ class VaamApp extends StatelessWidget {
       title: 'مدیریت اقساط وام',
       debugShowCheckedModeBanner: false,
       navigatorKey: navigatorKey,
-      locale: const Locale('fa'),
-      supportedLocales: const [Locale('fa')],
+      // fa_IR: delegateهای شمسیِ persian_datetime_picker فقط برای fa_IR
+      // فعال می‌شوند (isSupported به countryCode == 'IR' وابسته است)؛
+      // در نتیجه نام ماه‌ها در تقویم شمسی نمایش داده می‌شود (شهریور ۱۴۰۵).
+      locale: const Locale('fa', 'IR'),
+      supportedLocales: const [Locale('fa', 'IR'), Locale('fa')],
       localizationsDelegates: const [
+        // باید قبل از GlobalMaterialLocalizations باشد تا اولویت بگیرد
+        PersianMaterialLocalizations.delegate,
+        PersianCupertinoLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,

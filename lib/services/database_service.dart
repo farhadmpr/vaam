@@ -227,6 +227,46 @@ class DatabaseService {
     return [for (final row in rows) Installment.fromMap(row)];
   }
 
+  /// همه اقساط همه وام‌ها (برای تهیه فایل پشتیبان)
+  Future<List<Installment>> getAllInstallments() async {
+    final db = await database;
+    final rows = await db.query(
+      'installments',
+      orderBy: 'loan_id ASC, number ASC',
+    );
+    return [for (final row in rows) Installment.fromMap(row)];
+  }
+
+  /// بازگرداندن کامل اطلاعات از فایل پشتیبان:
+  /// تمام داده‌های فعلی حذف و داده‌های پشتیبان (با همان شناسه‌ها) درج می‌شوند
+  Future<void> restoreAll({
+    required List<Loan> loans,
+    required List<Installment> installments,
+  }) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      await txn.delete('installments');
+      await txn.delete('loans');
+
+      final batch = txn.batch();
+      for (final loan in loans) {
+        batch.insert(
+          'loans',
+          loan.toMap(),
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+      for (final installment in installments) {
+        batch.insert(
+          'installments',
+          installment.toMap(),
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+      await batch.commit(noResult: true);
+    });
+  }
+
   /// اقساط پرداخت‌نشده همه وام‌ها مرتب‌شده از نزدیک‌ترین سررسید به دورترین
   Future<List<UnpaidInstallment>> getUnpaidInstallments() async {
     final db = await database;

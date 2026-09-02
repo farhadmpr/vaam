@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:persian_datetime_picker/persian_datetime_picker.dart';
 
 import '../models/loan.dart';
@@ -62,24 +61,14 @@ class _LoanFormPageState extends State<LoanFormPage> {
   }
 
   Future<void> _pickStartDate() async {
+    // نام ماه و سال شمسی نمایش داده می‌شود (مثل «شهریور ۱۴۰۵»)؛ این کار با
+    // delegateهای PersianMaterialLocalizations که در main.dart تنظیم شده
+    // انجام می‌شود.
     final picked = await showPersianDatePicker(
       context: context,
       initialDate: _startDate,
       firstDate: Jalali(1390, 1, 1),
       lastDate: Jalali(1450, 1, 1),
-      // نام ماه و سال باید شمسی باشد (مثل «شهریور ۱۴۰۵»). به‌صورت پیش‌فرض
-      // MaterialLocalizations ماه میلادی برمی‌گرداند (مثل «اوت 2026»)؛
-      // با این override، داخل دیالوگ از نسخه شمسیِ خود پکیج استفاده می‌شود.
-      builder: (context, child) => Localizations(
-        locale: const Locale('fa'),
-        delegates: const [
-          PersianMaterialLocalizations.delegate,
-          GlobalMaterialLocalizations.delegate,
-          GlobalWidgetsLocalizations.delegate,
-          GlobalCupertinoLocalizations.delegate,
-        ],
-        child: child!,
-      ),
     );
     if (picked != null) {
       setState(() => _startDate = picked);

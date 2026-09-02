@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../services/backup_service.dart';
 import '../services/notification_service.dart';
 import '../services/settings_service.dart';
 import '../utils/jalali_utils.dart';
@@ -51,6 +52,89 @@ class _SettingsPageState extends State<SettingsPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('نوتیفیکیشن آزمایشی ارسال شد')),
     );
+  }
+
+  bool _busy = false;
+
+  void _showSnack(String message, {bool error = false}) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: error ? Theme.of(context).colorScheme.error : null,
+        ),
+      );
+  }
+
+  /// تهیه فایل پشتیبان و ذخیره در محل انتخابی کاربر
+  Future<void> _createBackup() async {
+    setState(() => _busy = true);
+    try {
+      final uri = await BackupService.instance.saveBackupFile();
+      if (!mounted) return;
+      if (uri == null) {
+        _showSnack('انصراف از ذخیره فایل پشتیبان');
+      } else {
+        _showSnack('فایل پشتیبان با موفقیت ذخیره شد ✅');
+      }
+    } catch (_) {
+      if (!mounted) return;
+      _showSnack('خطا در تهیه فایل پشتیبان؛ دوباره تلاش کنید', error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// انتخاب فایل پشتیبان و جایگزینی اطلاعات فعلی با آن
+  Future<void> _restoreBackup() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('بازیابی پشتیبان'),
+        content: const Text(
+          'تمام وام‌ها و اقساط فعلی حذف و با اطلاعات فایل پشتیبان '
+          'جایگزین می‌شود. ادامه می‌دهید؟',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('انصراف'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('بازیابی'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() => _busy = true);
+    try {
+      final summary = await BackupService.instance.restoreFromPickedFile();
+      if (!mounted) return;
+      if (summary == null) {
+        _showSnack('انصراف از بازیابی');
+        return;
+      }
+      // نوتیفیکیشن‌ها بر اساس اطلاعات جدید زمان‌بندی می‌شوند
+      await NotificationService.instance.rescheduleAll();
+      if (!mounted) return;
+      _showSnack(
+        'بازیابی انجام شد: '
+        '${JalaliUtils.toPersianDigits('${summary.loans}')} وام و '
+        '${JalaliUtils.toPersianDigits('${summary.installments}')} قسط',
+      );
+    } on FormatException catch (e) {
+      if (!mounted) return;
+      _showSnack(e.message, error: true);
+    } catch (_) {
+      if (!mounted) return;
+      _showSnack('خطا در بازیابی؛ فایل را بررسی کنید و دوباره تلاش کنید', error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   @override
@@ -108,6 +192,25 @@ class _SettingsPageState extends State<SettingsPage> {
               icon: const Icon(Icons.notifications_none),
               label: const Text('ارسال نوتیفیکیشن آزمایشی'),
             ),
+          ),
+          const Divider(height: 32),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Text('پشتیبان‌گیری و بازیابی', style: theme.textTheme.titleSmall),
+          ),
+          ListTile(
+            enabled: !_busy,
+            leading: const Icon(Icons.backup_outlined),
+            title: const Text('تهیه فایل پشتیبان'),
+            subtitle: const Text('ذخیره همه وام‌ها و اقساط در یک فایل JSON'),
+            onTap: _busy ? null : _createBackup,
+          ),
+          ListTile(
+            enabled: !_busy,
+            leading: const Icon(Icons.restore_outlined),
+            title: const Text('بازیابی از فایل پشتیبان'),
+            subtitle: const Text('اطلاعات فعلی با فایل پشتیبان جایگزین می‌شود'),
+            onTap: _busy ? null : _restoreBackup,
           ),
           const SizedBox(height: 16),
           Padding(
