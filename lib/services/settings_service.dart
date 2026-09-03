@@ -22,6 +22,12 @@ class SettingsService {
   static const String _keyHour = 'notify_hour';
   static const String _keyMinute = 'notify_minute';
   static const String _keyType = 'notify_type';
+  static const String _keyHomeLimit = 'home_limit';
+
+  /// حداکثر تعداد اقساط نمایش‌داده‌شده در صفحه اصلی
+  static const int defaultHomeLimit = 10;
+  static const int minHomeLimit = 1;
+  static const int maxHomeLimit = 200;
 
   /// آیا نوتیفیکیشن فعال است
   bool notificationsEnabled = true;
@@ -33,6 +39,9 @@ class SettingsService {
   /// نوع نوتیفیکیشن
   NotificationType notificationType = NotificationType.systemDefault;
 
+  /// حداکثر تعداد اقساط پرداخت‌نشده‌ای که در صفحه اصلی نمایش داده می‌شود
+  int homeLimit = defaultHomeLimit;
+
   Future<void> load() async {
     final sp = await SharedPreferences.getInstance();
     notificationsEnabled = sp.getBool(_keyEnabled) ?? true;
@@ -43,6 +52,8 @@ class SettingsService {
       (type) => type.name == typeName,
       orElse: () => NotificationType.systemDefault,
     );
+    homeLimit = (sp.getInt(_keyHomeLimit) ?? defaultHomeLimit)
+        .clamp(minHomeLimit, maxHomeLimit);
   }
 
   Future<void> save() async {
@@ -51,5 +62,9 @@ class SettingsService {
     await sp.setInt(_keyHour, notifyHour.clamp(0, 23));
     await sp.setInt(_keyMinute, notifyMinute.clamp(0, 59));
     await sp.setString(_keyType, notificationType.name);
+    await sp.setInt(
+      _keyHomeLimit,
+      homeLimit.clamp(minHomeLimit, maxHomeLimit),
+    );
   }
 }

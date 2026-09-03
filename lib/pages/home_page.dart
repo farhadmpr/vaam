@@ -4,6 +4,7 @@ import '../models/installment.dart';
 import '../models/loan.dart';
 import '../services/database_service.dart';
 import '../services/notification_service.dart';
+import '../services/settings_service.dart';
 import '../utils/jalali_utils.dart';
 import 'loan_details_page.dart';
 import 'loan_form_page.dart';
@@ -150,15 +151,37 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  /// اقساطی که با توجه به محدودیت تنظیم‌شده (تنظیمات) در صفحه اصلی
+  /// نمایش داده می‌شوند — نزدیک‌ترین سررسیدها اول
+  List<UnpaidInstallment> get _visibleItems =>
+      _items.take(SettingsService.instance.homeLimit).toList();
+
   Widget _buildList(int overdueCount) {
+    final visible = _visibleItems;
+    final hiddenCount = _items.length - visible.length;
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 96),
-      itemCount: _items.length + 1,
+      itemCount: visible.length + 1 + (hiddenCount > 0 ? 1 : 0),
       separatorBuilder: (_, _) => const SizedBox(height: 8),
       itemBuilder: (context, index) {
         if (index == 0) return _buildSummary(overdueCount);
-        return _buildTile(_items[index - 1]);
+        if (index == visible.length + 1) {
+          return _buildHiddenNotice(hiddenCount);
+        }
+        return _buildTile(visible[index - 1]);
       },
+    );
+  }
+
+  Widget _buildHiddenNotice(int hiddenCount) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+      child: Text(
+        '${JalaliUtils.toPersianDigits('$hiddenCount')} قسط دیگر نمایش داده '
+        'نمی‌شود؛ تعداد نمایش را می‌توانید از تنظیمات تغییر دهید.',
+        textAlign: TextAlign.center,
+        style: Theme.of(context).textTheme.bodySmall,
+      ),
     );
   }
 
@@ -256,20 +279,25 @@ class _HomePageState extends State<HomePage> {
     }
     return Container(
       width: 56,
-      padding: const EdgeInsets.symmetric(vertical: 6),
+      alignment: Alignment.center,
+      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            top,
-            style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 16),
-          ),
-          Text(bottom, style: TextStyle(color: color, fontSize: 10)),
-        ],
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              top,
+              style:
+                  TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+            Text(bottom, style: TextStyle(color: color, fontSize: 10)),
+          ],
+        ),
       ),
     );
   }

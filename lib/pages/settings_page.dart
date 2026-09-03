@@ -54,6 +54,73 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  /// ذخیره تنظیمات بدون نیاز به زمان‌بندی مجدد نوتیفیکیشن‌ها
+  Future<void> _saveSettings() async {
+    await _settings.save();
+    if (mounted) setState(() {});
+  }
+
+  /// تغییر حداکثر تعداد اقساط نمایش‌داده‌شده در صفحه اصلی
+  Future<void> _editHomeLimit() async {
+    final controller = TextEditingController(
+      text: '${_settings.homeLimit}',
+    );
+    final formKey = GlobalKey<FormState>();
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('تعداد اقساط در صفحه اصلی'),
+        content: Form(
+          key: formKey,
+          child: TextFormField(
+            controller: controller,
+            autofocus: true,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: 'تعداد',
+              hintText: 'مثلاً: 10',
+            ),
+            validator: (value) {
+              final count =
+                  int.tryParse(JalaliUtils.toEnglishDigits(value ?? ''));
+              if (count == null ||
+                  count < SettingsService.minHomeLimit ||
+                  count > SettingsService.maxHomeLimit) {
+                return 'عددی بین '
+                    '${JalaliUtils.toPersianDigits('${SettingsService.minHomeLimit}')} '
+                    'تا ${JalaliUtils.toPersianDigits('${SettingsService.maxHomeLimit}')} '
+                    'وارد کنید';
+              }
+              return null;
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('انصراف'),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (formKey.currentState!.validate()) {
+                Navigator.pop(dialogContext, true);
+              }
+            },
+            child: const Text('ذخیره'),
+          ),
+        ],
+      ),
+    );
+    if (saved != true) {
+      controller.dispose();
+      return;
+    }
+    _settings.homeLimit =
+        int.parse(JalaliUtils.toEnglishDigits(controller.text.trim()));
+    controller.dispose();
+    await _saveSettings();
+  }
+
   bool _busy = false;
 
   void _showSnack(String message, {bool error = false}) {
@@ -146,6 +213,16 @@ class _SettingsPageState extends State<SettingsPage> {
       body: ListView(
         padding: const EdgeInsets.symmetric(vertical: 8),
         children: [
+          ListTile(
+            leading: const Icon(Icons.format_list_numbered),
+            title: const Text('تعداد اقساط در صفحه اصلی'),
+            subtitle: Text(
+              '${JalaliUtils.toPersianDigits('${_settings.homeLimit}')} قسط نزدیک نمایش داده می‌شود',
+            ),
+            trailing: const Icon(Icons.edit_outlined),
+            onTap: _editHomeLimit,
+          ),
+          const Divider(),
           SwitchListTile(
             secondary: const Icon(Icons.notifications_active_outlined),
             title: const Text('نمایش نوتیفیکیشن'),

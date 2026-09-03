@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart'
-    show databaseFactoryFfi, sqfliteFfiInit;
+    show databaseFactoryFfiNoIsolate, sqfliteFfiInit;
 import 'package:vaam/models/loan.dart';
 import 'package:vaam/services/backup_service.dart';
 import 'package:vaam/services/database_service.dart';
@@ -20,9 +20,11 @@ Loan _loan(String name, {int count = 3}) {
 }
 
 void main() {
-  // استفاده از پیاده‌سازی ffi برای اجرای تست روی ویندوز
+  // پیاده‌سازی ffi درون‌حافظه‌ای: هر فایل تست دیتابیس مجزای خودش را دارد
+  // و تداخلی با فایل‌های تست دیگر (که موازی اجرا می‌شوند) ایجاد نمی‌کند
   sqfliteFfiInit();
-  databaseFactory = databaseFactoryFfi;
+  databaseFactory = databaseFactoryFfiNoIsolate;
+  DatabaseService.instance.useInMemoryDatabaseForTest();
 
   setUpAll(() async {
     await DatabaseService.instance.resetForTest();
