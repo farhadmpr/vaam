@@ -36,7 +36,6 @@ jobs:
         shell: bash
         run: |
           VERSION=$(grep '^version:' pubspec.yaml | sed 's/version: //' | tr -d ' ')
-
           VERSION_NAME="${VERSION%%+*}"
 
           echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
@@ -59,7 +58,7 @@ jobs:
           path: build/app/outputs/flutter-apk/vaam-*.apk
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: v${{ steps.version.outputs.version_name }}-build.${{ github.run_number }}
           name: VAAM v${{ steps.version.outputs.version_name }} - Build ${{ github.run_number }}
