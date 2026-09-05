@@ -19,11 +19,28 @@ class _LoansPageState extends State<LoansPage> {
   List<Loan> _loans = [];
   Map<int, LoanProgress> _progress = {};
   bool _loading = true;
+  final _searchController = TextEditingController();
+  bool _searchVisible = false;
 
   @override
   void initState() {
     super.initState();
     _refresh();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  /// وام‌های مطابق عبارت جستجو (نام وام، بانک، توضیحات)
+  List<Loan> get _filteredLoans {
+    final query = _searchController.text;
+    if (query.trim().isEmpty) return _loans;
+    return _loans
+        .where((loan) => loan.matchesQuery(query))
+        .toList(growable: false);
   }
 
   Future<void> _refresh() async {
@@ -80,8 +97,42 @@ class _LoansPageState extends State<LoansPage> {
 
   @override
   Widget build(BuildContext context) {
+    final filtered = _filteredLoans;
     return Scaffold(
-      appBar: AppBar(title: const Text('وام‌ها')),
+      appBar: AppBar(
+        title: _searchVisible
+            ? TextField(
+                controller: _searchController,
+                autofocus: true,
+                keyboardType: TextInputType.text,
+                textInputAction: TextInputAction.search,
+                decoration: const InputDecoration(
+                  hintText: 'جستجو: نام وام، بانک، توضیحات',
+                  border: InputBorder.none,
+                  isDense: true,
+                  prefixIcon: Icon(Icons.search),
+                ),
+                onChanged: (_) => setState(() {}),
+              )
+            : const Text('وام‌ها'),
+        actions: [
+          if (_searchVisible)
+            IconButton(
+              tooltip: 'بستن جستجو',
+              icon: const Icon(Icons.close),
+              onPressed: () {
+                _searchController.clear();
+                setState(() => _searchVisible = false);
+              },
+            )
+          else
+            IconButton(
+              tooltip: 'جستجو',
+              icon: const Icon(Icons.search),
+              onPressed: () => setState(() => _searchVisible = true),
+            ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _openForm(),
         icon: const Icon(Icons.add),
@@ -97,16 +148,40 @@ class _LoansPageState extends State<LoansPage> {
                     const Center(child: Text('هنوز وامی ثبت نشده است')),
                   ],
                 )
-              : RefreshIndicator(
-                  onRefresh: _refresh,
-                  child: ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 96),
-                    itemCount: _loans.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 8),
-                    itemBuilder: (context, index) =>
-                        _tile(_loans[index]),
-                  ),
-                ),
+              : filtered.isEmpty
+                  ? _buildNoResults()
+                  : RefreshIndicator(
+                      onRefresh: _refresh,
+                      child: ListView.separated(
+                        padding: const EdgeInsets.fromLTRB(12, 12, 12, 96),
+                        itemCount: filtered.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 8),
+                        itemBuilder: (context, index) => _tile(filtered[index]),
+                      ),
+                    ),
+    );
+  }
+
+  Widget _buildNoResults() {
+    final theme = Theme.of(context);
+    return ListView(
+      children: [
+        SizedBox(height: MediaQuery.of(context).size.height * 0.25),
+        Icon(
+          Icons.search_off,
+          size: 72,
+          color: theme.colorScheme.primary.withValues(alpha: 0.4),
+        ),
+        const SizedBox(height: 16),
+        Center(
+          child: Text(
+            'نتیجه‌ای برای جستجو یافت نشد',
+            style: theme.textTheme.titleMedium,
+          ),
+        ),
+        const SizedBox(height: 8),
+        const Center(child: Text('عبارت دیگری را امتحان کنید')),
+      ],
     );
   }
 

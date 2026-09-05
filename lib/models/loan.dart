@@ -1,5 +1,7 @@
 import 'package:shamsi_date/shamsi_date.dart';
 
+import '../utils/search_utils.dart';
+
 /// مدل وام بانکی
 class Loan {
   final int? id;
@@ -40,6 +42,15 @@ class Loan {
   });
 
   Jalali get startJalali => Jalali(startYear, startMonth, startDay);
+
+  /// بررسی تطابق وام با عبارت جستجو بر اساس نام وام، نام بانک و توضیحات
+  /// (جستجوی چندواژه‌ای: همه واژه‌ها باید در متن وام باشند)
+  bool matchesQuery(String rawQuery) {
+    final words = SearchUtils.queryWords(rawQuery);
+    if (words.isEmpty) return true;
+    final haystack = SearchUtils.normalize('$name $bank ${description ?? ''}');
+    return words.every(haystack.contains);
+  }
 
   factory Loan.fromMap(Map<String, Object?> map) {
     return Loan(

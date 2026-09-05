@@ -89,4 +89,86 @@ void main() {
     await scrollToBottom(tester);
     expect(find.textContaining('قسط دیگر'), findsNothing);
   });
+
+  testWidgets('home page search filters installments', (tester) async {
+    // دو وام با نام/توضیحات متمایز (تست قبلی ۱۲ «وام تست» ساخته است)
+    await DatabaseService.instance.createLoan(
+      Loan(
+        name: 'وام مسکن شهری',
+        bank: 'بانک ملت',
+        startYear: 1410,
+        startMonth: 2,
+        startDay: 10,
+        installmentCount: 1,
+        description: 'تسهیل خرید ملک',
+      ),
+    );
+    await DatabaseService.instance.createLoan(
+      Loan(
+        name: 'وام خودرو',
+        bank: 'بانک سامان',
+        startYear: 1410,
+        startMonth: 3,
+        startDay: 10,
+        installmentCount: 1,
+        description: 'خرید خودرو صفر',
+      ),
+    );
+
+    await pumpApp(tester);
+
+    // باز کردن جستجو و تایپ عبارت
+    await tester.tap(find.byIcon(Icons.search));
+    await tester.pump();
+    await tester.enterText(find.byType(TextField), 'خودرو');
+    await tester.pumpAndSettle();
+
+    // فقط وام خودرو باید دیده شود
+    expect(find.text('وام خودرو'), findsOneWidget);
+    expect(find.text('وام مسکن شهری'), findsNothing);
+
+    // جستجو بر اساس توضیحات
+    await tester.enterText(find.byType(TextField), 'خرید ملک');
+    await tester.pumpAndSettle();
+    expect(find.text('وام مسکن شهری'), findsOneWidget);
+    expect(find.text('وام خودرو'), findsNothing);
+
+    // بستن جستجو: عبارت پاک و همه اقساط برمی‌گردند
+    await tester.tap(find.byIcon(Icons.close));
+    await tester.pumpAndSettle();
+    expect(find.byType(TextField), findsNothing);
+    expect(find.text('۱۴'), findsOneWidget); // ۱۲ تست + ۲ جدید
+  });
+
+  testWidgets('loans page search filters loans', (tester) async {
+    await DatabaseService.instance.createLoan(
+      Loan(
+        name: 'وام آلفا',
+        bank: 'بانک آلفا',
+        startYear: 1410,
+        startMonth: 4,
+        startDay: 10,
+        installmentCount: 1,
+      ),
+    );
+
+    await pumpApp(tester);
+
+    // رفتن به صفحه وام‌ها
+    await tester.tap(find.byIcon(Icons.account_balance_outlined));
+    await tester.pumpAndSettle();
+
+    // باز کردن جستجو و تایپ
+    await tester.tap(find.byIcon(Icons.search));
+    await tester.pump();
+    await tester.enterText(find.byType(TextField), 'آلفا');
+    await tester.pumpAndSettle();
+    expect(find.text('وام آلفا'), findsOneWidget);
+    expect(find.text('وام تست 1'), findsNothing);
+
+    // بستن جستجو: «وام آلفا» به‌عنوان اولین وام (ترتیب الفبایی) دیده می‌شود
+    await tester.tap(find.byIcon(Icons.close));
+    await tester.pumpAndSettle();
+    expect(find.text('وام آلفا'), findsOneWidget);
+  });
 }

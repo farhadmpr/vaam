@@ -22,11 +22,19 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   List<UnpaidInstallment> _items = [];
   bool _loading = true;
+  final _searchController = TextEditingController();
+  bool _searchVisible = false;
 
   @override
   void initState() {
     super.initState();
     _refresh();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _refresh() async {
@@ -93,14 +101,56 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final overdueCount = _items
-        .where((item) =>
-            JalaliUtils.daysFromToday(item.installment.dueDateTime) < 0)
-        .length;
+    final filtered = _filteredItems;
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('اقساط وام'),
-        actions: [
+      appBar: _buildAppBar(),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : RefreshIndicator(
+              onRefresh: _refresh,
+              child: _buildBody(filtered),
+            ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _openLoanForm(),
+        icon: const Icon(Icons.add),
+        label: const Text('وام جدید'),
+      ),
+    );
+  }
+
+  AppBar _buildAppBar() {
+    return AppBar(
+      title: _searchVisible
+          ? TextField(
+              controller: _searchController,
+              autofocus: true,
+              keyboardType: TextInputType.text,
+              textInputAction: TextInputAction.search,
+              decoration: const InputDecoration(
+                hintText: 'جستجو: نام وام، بانک، توضیحات',
+                border: InputBorder.none,
+                isDense: true,
+                prefixIcon: Icon(Icons.search),
+              ),
+              onChanged: (_) => setState(() {}),
+            )
+          : const Text('اقساط وام'),
+      actions: [
+        if (_searchVisible)
+          IconButton(
+            tooltip: 'بستن جستجو',
+            icon: const Icon(Icons.close),
+            onPressed: () {
+              _searchController.clear();
+              setState(() => _searchVisible = false);
+            },
+          )
+        else ...[
+          IconButton(
+            tooltip: 'جستجو',
+            icon: const Icon(Icons.search),
+            onPressed: () => setState(() => _searchVisible = true),
+          ),
           IconButton(
             tooltip: 'وام‌ها',
             icon: const Icon(Icons.account_balance_outlined),
@@ -112,19 +162,36 @@ class _HomePageState extends State<HomePage> {
             onPressed: _openSettings,
           ),
         ],
-      ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _refresh,
-              child:
-                  _items.isEmpty ? _buildEmpty() : _buildList(overdueCount),
-            ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _openLoanForm(),
-        icon: const Icon(Icons.add),
-        label: const Text('وام جدید'),
-      ),
+      ],
+    );
+  }
+
+  Widget _buildBody(List<UnpaidInstallment> filtered) {
+    if (_items.isEmpty) return _buildEmpty();
+    if (filtered.isEmpty) return _buildNoResults();
+    return _buildList(filtered);
+  }
+
+  Widget _buildNoResults() {
+    final theme = Theme.of(context);
+    return ListView(
+      children: [
+        SizedBox(height: MediaQuery.of(context).size.height * 0.25),
+        Icon(
+          Icons.search_off,
+          size: 72,
+          color: theme.colorScheme.primary.withValues(alpha: 0.4),
+        ),
+        const SizedBox(height: 16),
+        Center(
+          child: Text(
+            'نتیجه‌ای برای جستجو یافت نشد',
+            style: theme.textTheme.titleMedium,
+          ),
+        ),
+        const SizedBox(height: 8),
+        const Center(child: Text('عبارت دیگری را امتحان کنید')),
+      ],
     );
   }
 
@@ -151,20 +218,31 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  /// اقساطی که با توجه به محدودیت تنظیم‌شده (تنظیمات) در صفحه اصلی
-  /// نمایش داده می‌شوند — نزدیک‌ترین سررسیدها اول
-  List<UnpaidInstallment> get _visibleItems =>
-      _items.take(SettingsService.instance.homeLimit).toList();
+  /// اقساط مطابق عبارت جستجو (نام وام، بانک، توضیحات)؛
+  /// عبارت خالی یعنی همه اقساط
+  List<UnpaidInstallment> get _filteredItems {
+    final query = _searchController.text;
+    if (query.trim().isEmpty) return _items;
+    return _items
+        .where((item) => item.loan.matchesQuery(query))
+        .toList(growable: false);
+  }
 
-  Widget _buildList(int overdueCount) {
-    final visible = _visibleItems;
-    final hiddenCount = _items.length - visible.length;
+
+  Widget _buildList(List<UnpaidInstallment> filtered) {
+    final overdueCount = filtered
+        .where((item) =>
+            JalaliUtils.daysFromToday(item.installment.dueDateTime) < 0)
+        .length;
+    final visible =
+        filtered.take(SettingsService.instance.homeLimit).toList();
+    final hiddenCount = filtered.length - visible.length;
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 96),
       itemCount: visible.length + 1 + (hiddenCount > 0 ? 1 : 0),
       separatorBuilder: (_, _) => const SizedBox(height: 8),
       itemBuilder: (context, index) {
-        if (index == 0) return _buildSummary(overdueCount);
+        if (index == 0) return _buildSummary(filtered, overdueCount);
         if (index == visible.length + 1) {
           return _buildHiddenNotice(hiddenCount);
         }
@@ -185,7 +263,7 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildSummary(int overdueCount) {
+  Widget _buildSummary(List<UnpaidInstallment> items, int overdueCount) {
     final theme = Theme.of(context);
     return Card(
       child: Padding(
@@ -193,7 +271,7 @@ class _HomePageState extends State<HomePage> {
         child: Row(
           children: [
             _stat(
-              JalaliUtils.toPersianDigits('${_items.length}'),
+              JalaliUtils.toPersianDigits('${items.length}'),
               'قسط باز',
               theme.colorScheme.primary,
             ),
@@ -209,7 +287,7 @@ class _HomePageState extends State<HomePage> {
               children: [
                 Text('نزدیک‌ترین سررسید', style: theme.textTheme.bodySmall),
                 Text(
-                  JalaliUtils.formatDateTime(_items.first.installment.dueDateTime),
+                  JalaliUtils.formatDateTime(items.first.installment.dueDateTime),
                   style: theme.textTheme.titleSmall
                       ?.copyWith(fontWeight: FontWeight.bold),
                 ),
