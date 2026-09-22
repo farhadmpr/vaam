@@ -115,7 +115,7 @@ class DatabaseService {
 
   /// تولید تاریخ‌های سررسید بر اساس دوره تکرار وام:
   /// ماهانه بر اساس تقویم شمسی (با اصلاح روز)؛
-  /// هفته/روز/ساعت با گام ثابت از تاریخ شروع
+  /// هفته و روز با گام ثابت از تاریخ شروع
   static List<String> generateDueDates(Loan loan) {
     final count = loan.installmentCount;
     final step = loan.repeatCount < 1 ? 1 : loan.repeatCount;
@@ -132,8 +132,6 @@ class DatabaseService {
         return _stepDates(loan.startJalali, Duration(days: 7 * step), count);
       case RepeatUnit.day:
         return _stepDates(loan.startJalali, Duration(days: step), count);
-      case RepeatUnit.hour:
-        return _stepDates(loan.startJalali, Duration(hours: step), count);
     }
   }
 

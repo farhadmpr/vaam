@@ -1,6 +1,5 @@
 /// واحد دوره تکرار سررسیدها
 enum RepeatUnit {
-  hour('ساعت'),
   day('روز'),
   week('هفته'),
   month('ماه');
@@ -9,11 +8,21 @@ enum RepeatUnit {
 
   final String label;
 
-  /// خواندن واحد از دیتابیس/فایل پشتیبان؛ مقدار نامعتبر → ماهانه
+  /// خواندن واحد از دیتابیس/فایل پشتیبان؛
+  /// واحد حذف‌شده «ساعت» (hour) به «روز» مهاجرت می‌کند و
+  /// مقادیر نامعتبر به «ماه» برمی‌گردند
   static RepeatUnit fromName(String? name) {
-    return RepeatUnit.values.firstWhere(
-      (unit) => unit.name == name,
-      orElse: () => RepeatUnit.month,
-    );
+    switch (name) {
+      case 'hour':
+      case 'day':
+        return RepeatUnit.day;
+      case 'week':
+        return RepeatUnit.week;
+      case 'month':
+        return RepeatUnit.month;
+      default:
+        return RepeatUnit.month;
+    }
   }
 }
+

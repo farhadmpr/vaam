@@ -249,7 +249,7 @@ class _LoanFormPageState extends State<LoanFormPage> {
               },
             ),
             const SizedBox(height: 16),
-            // دوره تکرار سررسیدها: هر چند ساعت/روز/هفته/ماه
+            // دوره تکرار سررسیدها: هر چند روز/هفته/ماه
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -321,7 +321,8 @@ class _LoanFormPageState extends State<LoanFormPage> {
             Text(
               'سررسیدها بر اساس دوره تکرار انتخابی از تاریخ شروع محاسبه '
               'می‌شوند؛ مثلاً با انتخاب «هر 3 روز» هر ۳ روز یک قسط در نظر '
-              'گرفته می‌شود. در روز سررسید، نوتیفیکیشن یادآوری ارسال می‌شود.',
+              'گرفته می‌شود. ساعت نمایش نوتیفیکیشن یادآوری برای همه اقساط '
+              'از «تنظیمات» تعیین می‌شود.',
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ],

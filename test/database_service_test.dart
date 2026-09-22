@@ -61,7 +61,7 @@ void main() {
     }
   });
 
-  test('repeat interval generates due dates (day/week/hour/month)', () async {
+  test('repeat interval generates due dates (day/week/month)', () async {
     final base = Jalali(1404, 8, 15).toDateTime();
 
     Loan repeatLoan(
@@ -107,18 +107,6 @@ void main() {
       );
     }
 
-    // هر ۸ ساعت: ۳ قسط در روز شروع و ۱ قسط روز بعد
-    final hourId = await DatabaseService.instance.createLoan(
-      repeatLoan('وام هر ۸ ساعت', repeatCount: 8, unit: RepeatUnit.hour),
-    );
-    final hourItems = await DatabaseService.instance.getInstallments(hourId);
-    expect(hourItems[0].dueDate, hourItems[1].dueDate);
-    expect(hourItems[1].dueDate, hourItems[2].dueDate);
-    expect(
-      DateTime.parse(hourItems[3].dueDate),
-      DateTime.parse(hourItems[0].dueDate).add(const Duration(days: 1)),
-    );
-
     // هر ۲ ماه: ماه‌های ۸، ۱۰، ۱۲، ۱ (سال بعد)
     final monthId = await DatabaseService.instance.createLoan(
       repeatLoan('وام هر ۲ ماه', repeatCount: 2, unit: RepeatUnit.month),
@@ -161,10 +149,27 @@ void main() {
       loanWith(repeatCount: 1, unit: RepeatUnit.month).repeatLabel,
       'هر ماه',
     );
+  });
+
+  test('repeat units are limited to day, week and month', () {
+    // واحد «ساعت» حذف شده است؛ فقط روز، هفته و ماه در فهرست فرم هستند
     expect(
-      loanWith(repeatCount: 8, unit: RepeatUnit.hour).repeatLabel,
-      'هر ۸ ساعت',
+      RepeatUnit.values.map((unit) => unit.name).toList(),
+      ['day', 'week', 'month'],
     );
+    expect(
+      RepeatUnit.values.map((unit) => unit.label).toList(),
+      ['روز', 'هفته', 'ماه'],
+    );
+  });
+
+  test('legacy hourly repeat unit migrates to daily', () {
+    expect(RepeatUnit.fromName('hour'), RepeatUnit.day);
+    expect(RepeatUnit.fromName('day'), RepeatUnit.day);
+    expect(RepeatUnit.fromName('week'), RepeatUnit.week);
+    expect(RepeatUnit.fromName('month'), RepeatUnit.month);
+    expect(RepeatUnit.fromName('unknown'), RepeatUnit.month);
+    expect(RepeatUnit.fromName(null), RepeatUnit.month);
   });
 
   test('loan name must be unique', () async {
