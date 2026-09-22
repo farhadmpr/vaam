@@ -1,6 +1,8 @@
 import 'package:shamsi_date/shamsi_date.dart';
 
+import '../utils/jalali_utils.dart';
 import '../utils/search_utils.dart';
+import 'repeat_unit.dart';
 
 /// مدل وام بانکی
 class Loan {
@@ -20,6 +22,12 @@ class Loan {
   /// تعداد کل اقساط
   final int installmentCount;
 
+  /// فاصله تکرار سررسیدها (مثلاً ۳ در «هر ۳ روز»)
+  final int repeatCount;
+
+  /// واحد دوره تکرار سررسیدها
+  final RepeatUnit repeatUnit;
+
   /// مبلغ هر قسط (اختیاری)
   final double? amount;
 
@@ -36,12 +44,21 @@ class Loan {
     required this.startMonth,
     required this.startDay,
     required this.installmentCount,
+    this.repeatCount = 1,
+    this.repeatUnit = RepeatUnit.month,
     this.amount,
     this.description,
     this.createdAt,
   });
 
   Jalali get startJalali => Jalali(startYear, startMonth, startDay);
+
+  /// برچسب خوانا برای دوره تکرار (مثل «هر ۳ روز» یا «هر ماه»)
+  String get repeatLabel {
+    final count = repeatCount < 1 ? 1 : repeatCount;
+    if (count == 1) return 'هر ${repeatUnit.label}';
+    return 'هر ${JalaliUtils.toPersianDigits('$count')} ${repeatUnit.label}';
+  }
 
   /// بررسی تطابق وام با عبارت جستجو بر اساس نام وام، نام بانک و توضیحات
   /// (جستجوی چندواژه‌ای: همه واژه‌ها باید در متن وام باشند)
@@ -61,6 +78,8 @@ class Loan {
       startMonth: map['start_month'] as int,
       startDay: map['start_day'] as int,
       installmentCount: map['installment_count'] as int,
+      repeatCount: (map['repeat_count'] as int?) ?? 1,
+      repeatUnit: RepeatUnit.fromName(map['repeat_unit'] as String?),
       amount: (map['amount'] as num?)?.toDouble(),
       description: map['description'] as String?,
       createdAt: map['created_at'] as String?,
@@ -76,6 +95,8 @@ class Loan {
       'start_month': startMonth,
       'start_day': startDay,
       'installment_count': installmentCount,
+      'repeat_count': repeatCount < 1 ? 1 : repeatCount,
+      'repeat_unit': repeatUnit.name,
       'amount': amount,
       'description': (description == null || description!.trim().isEmpty)
           ? null
@@ -92,6 +113,8 @@ class Loan {
     int? startMonth,
     int? startDay,
     int? installmentCount,
+    int? repeatCount,
+    RepeatUnit? repeatUnit,
     double? amount,
     bool clearAmount = false,
     String? description,
@@ -106,6 +129,8 @@ class Loan {
       startMonth: startMonth ?? this.startMonth,
       startDay: startDay ?? this.startDay,
       installmentCount: installmentCount ?? this.installmentCount,
+      repeatCount: repeatCount ?? this.repeatCount,
+      repeatUnit: repeatUnit ?? this.repeatUnit,
       amount: clearAmount ? null : (amount ?? this.amount),
       description: clearDescription
           ? null

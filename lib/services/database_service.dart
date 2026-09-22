@@ -5,6 +5,7 @@ import 'package:sqflite/sqflite.dart';
 
 import '../models/installment.dart';
 import '../models/loan.dart';
+import '../models/repeat_unit.dart';
 import '../utils/jalali_utils.dart';
 
 /// آمار پیشرفت پرداخت یک وام
@@ -24,7 +25,7 @@ class DatabaseService {
   static final DatabaseService instance = DatabaseService._();
 
   static const String _dbName = 'vaam.db';
-  static const int _dbVersion = 1;
+  static const int _dbVersion = 2;
 
   Database? _db;
 
@@ -51,6 +52,7 @@ class DatabaseService {
         pathOverride,
         version: _dbVersion,
         onCreate: _onCreate,
+        onUpgrade: _onUpgrade,
       );
     }
     final dir = await getDatabasesPath();
@@ -58,6 +60,7 @@ class DatabaseService {
       p.join(dir, _dbName),
       version: _dbVersion,
       onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
     );
   }
 
@@ -71,6 +74,8 @@ class DatabaseService {
             start_month INTEGER NOT NULL,
             start_day INTEGER NOT NULL,
             installment_count INTEGER NOT NULL,
+            repeat_count INTEGER NOT NULL DEFAULT 1,
+            repeat_unit TEXT NOT NULL DEFAULT 'month',
             amount REAL,
             description TEXT,
             created_at TEXT NOT NULL
@@ -95,11 +100,49 @@ class DatabaseService {
         );
   }
 
-  /// تولید تاریخ‌های سررسید اقساط به‌صورت ماهانه از تاریخ شروع (شمسی)
-  static List<String> generateDueDates(Jalali start, int count) {
+  /// ارتقای ساختار دیتابیس از نسخه‌های قدیمی‌تر
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      // افزودن دوره تکرار سررسیدها (وام‌های قبلی: ماهانه)
+      await db.execute(
+        'ALTER TABLE loans ADD COLUMN repeat_count INTEGER NOT NULL DEFAULT 1',
+      );
+      await db.execute(
+        "ALTER TABLE loans ADD COLUMN repeat_unit TEXT NOT NULL DEFAULT 'month'",
+      );
+    }
+  }
+
+  /// تولید تاریخ‌های سررسید بر اساس دوره تکرار وام:
+  /// ماهانه بر اساس تقویم شمسی (با اصلاح روز)؛
+  /// هفته/روز/ساعت با گام ثابت از تاریخ شروع
+  static List<String> generateDueDates(Loan loan) {
+    final count = loan.installmentCount;
+    final step = loan.repeatCount < 1 ? 1 : loan.repeatCount;
+    switch (loan.repeatUnit) {
+      case RepeatUnit.month:
+        final start = loan.startJalali;
+        return [
+          for (var i = 0; i < count; i++)
+            JalaliUtils.toIsoDate(
+              JalaliUtils.addMonths(start, step * i).toDateTime(),
+            ),
+        ];
+      case RepeatUnit.week:
+        return _stepDates(loan.startJalali, Duration(days: 7 * step), count);
+      case RepeatUnit.day:
+        return _stepDates(loan.startJalali, Duration(days: step), count);
+      case RepeatUnit.hour:
+        return _stepDates(loan.startJalali, Duration(hours: step), count);
+    }
+  }
+
+  /// گام‌برداری ثابت روی تاریخ‌ها (در UTC تا تغییر ساعت روی تاریخ اثر نگذارد)
+  static List<String> _stepDates(Jalali start, Duration step, int count) {
+    final gregorian = start.toGregorian();
+    final base = DateTime.utc(gregorian.year, gregorian.month, gregorian.day);
     return [
-      for (var i = 0; i < count; i++)
-        JalaliUtils.toIsoDate(JalaliUtils.addMonths(start, i).toDateTime()),
+      for (var i = 0; i < count; i++) JalaliUtils.toIsoDate(base.add(step * i)),
     ];
   }
 
@@ -133,10 +176,10 @@ class DatabaseService {
     return rows.isEmpty ? null : Loan.fromMap(rows.first);
   }
 
-  /// ثبت وام جدید به همراه اقساط ماهانه آن
+  /// ثبت وام جدید به همراه اقساط آن بر اساس دوره تکرار
   Future<int> createLoan(Loan loan) async {
     final db = await database;
-    final dueDates = generateDueDates(loan.startJalali, loan.installmentCount);
+    final dueDates = generateDueDates(loan);
     return db.transaction((txn) async {
       final map = loan.toMap();
       map['created_at'] ??= DateTime.now().toIso8601String();
@@ -157,11 +200,12 @@ class DatabaseService {
     });
   }
 
-  /// ویرایش وام. اگر تاریخ شروع یا تعداد اقساط تغییر کند اقساط از نو ساخته
-  /// می‌شوند و وضعیت «پرداخت‌شده» اقساطی که شماره یکسانی دارند حفظ می‌شود.
+  /// ویرایش وام. اگر تاریخ شروع، دوره تکرار یا تعداد اقساط تغییر کند اقساط
+  /// از نو ساخته می‌شوند و وضعیت «پرداخت‌شده» اقساطی که شماره یکسانی دارند
+  /// حفظ می‌شود.
   Future<void> updateLoan(Loan loan) async {
     final db = await database;
-    final dueDates = generateDueDates(loan.startJalali, loan.installmentCount);
+    final dueDates = generateDueDates(loan);
     await db.transaction((txn) async {
       final oldRows = await txn.query(
         'installments',

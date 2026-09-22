@@ -149,6 +149,7 @@ class _LoanDetailsPageState extends State<LoanDetailsPage> {
             ),
             const Divider(height: 24),
             _infoRow('تاریخ شروع اقساط', JalaliUtils.formatJalali(loan.startJalali)),
+            _infoRow('دوره تکرار', loan.repeatLabel),
             _infoRow(
               'تعداد اقساط',
               '${JalaliUtils.toPersianDigits('${loan.installmentCount}')} قسط',

@@ -4,6 +4,7 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart'
     show databaseFactoryFfiNoIsolate, sqfliteFfiInit;
 import 'package:shamsi_date/shamsi_date.dart';
 import 'package:vaam/models/loan.dart';
+import 'package:vaam/models/repeat_unit.dart';
 import 'package:vaam/services/database_service.dart';
 
 Loan _loan(
@@ -58,6 +59,112 @@ void main() {
       expect(jalali.month, (start.month - 1 + i) % 12 + 1);
       expect(jalali.day, start.day);
     }
+  });
+
+  test('repeat interval generates due dates (day/week/hour/month)', () async {
+    final base = Jalali(1404, 8, 15).toDateTime();
+
+    Loan repeatLoan(
+      String name, {
+      required int repeatCount,
+      required RepeatUnit unit,
+      int count = 4,
+    }) {
+      return Loan(
+        name: name,
+        bank: 'بانک ملت',
+        startYear: 1404,
+        startMonth: 8,
+        startDay: 15,
+        installmentCount: count,
+        repeatCount: repeatCount,
+        repeatUnit: unit,
+      );
+    }
+
+    // هر ۳ روز: سررسیدها ۳ روز از هم فاصله دارند
+    final dayId = await DatabaseService.instance.createLoan(
+      repeatLoan('وام هر ۳ روز', repeatCount: 3, unit: RepeatUnit.day),
+    );
+    final dayItems = await DatabaseService.instance.getInstallments(dayId);
+    expect(dayItems, hasLength(4));
+    for (var i = 0; i < dayItems.length; i++) {
+      expect(
+        DateTime.parse(dayItems[i].dueDate),
+        DateTime(base.year, base.month, base.day).add(Duration(days: 3 * i)),
+      );
+    }
+
+    // هر ۱ هفته: فاصله ۷ روزه
+    final weekId = await DatabaseService.instance.createLoan(
+      repeatLoan('وام هر هفته', repeatCount: 1, unit: RepeatUnit.week),
+    );
+    final weekItems = await DatabaseService.instance.getInstallments(weekId);
+    for (var i = 0; i < weekItems.length; i++) {
+      expect(
+        DateTime.parse(weekItems[i].dueDate),
+        DateTime(base.year, base.month, base.day).add(Duration(days: 7 * i)),
+      );
+    }
+
+    // هر ۸ ساعت: ۳ قسط در روز شروع و ۱ قسط روز بعد
+    final hourId = await DatabaseService.instance.createLoan(
+      repeatLoan('وام هر ۸ ساعت', repeatCount: 8, unit: RepeatUnit.hour),
+    );
+    final hourItems = await DatabaseService.instance.getInstallments(hourId);
+    expect(hourItems[0].dueDate, hourItems[1].dueDate);
+    expect(hourItems[1].dueDate, hourItems[2].dueDate);
+    expect(
+      DateTime.parse(hourItems[3].dueDate),
+      DateTime.parse(hourItems[0].dueDate).add(const Duration(days: 1)),
+    );
+
+    // هر ۲ ماه: ماه‌های ۸، ۱۰، ۱۲، ۱ (سال بعد)
+    final monthId = await DatabaseService.instance.createLoan(
+      repeatLoan('وام هر ۲ ماه', repeatCount: 2, unit: RepeatUnit.month),
+    );
+    final monthItems = await DatabaseService.instance.getInstallments(monthId);
+    expect(monthItems[0].dueDate, base.toIso8601String().substring(0, 10));
+    for (var i = 0; i < monthItems.length; i++) {
+      final j = Jalali.fromDateTime(DateTime.parse(monthItems[i].dueDate));
+      expect(j.day, 15);
+      expect((j.year - 1404) * 12 + j.month - 8, 2 * i);
+    }
+  });
+
+  test('repeatLabel formats nicely', () {
+    Loan loanWith({
+      required int repeatCount,
+      required RepeatUnit unit,
+    }) {
+      return Loan(
+        name: 'x',
+        bank: 'y',
+        startYear: 1404,
+        startMonth: 1,
+        startDay: 1,
+        installmentCount: 1,
+        repeatCount: repeatCount,
+        repeatUnit: unit,
+      );
+    }
+
+    expect(
+      loanWith(repeatCount: 3, unit: RepeatUnit.day).repeatLabel,
+      'هر ۳ روز',
+    );
+    expect(
+      loanWith(repeatCount: 2, unit: RepeatUnit.week).repeatLabel,
+      'هر ۲ هفته',
+    );
+    expect(
+      loanWith(repeatCount: 1, unit: RepeatUnit.month).repeatLabel,
+      'هر ماه',
+    );
+    expect(
+      loanWith(repeatCount: 8, unit: RepeatUnit.hour).repeatLabel,
+      'هر ۸ ساعت',
+    );
   });
 
   test('loan name must be unique', () async {

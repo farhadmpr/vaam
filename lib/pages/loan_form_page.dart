@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:persian_datetime_picker/persian_datetime_picker.dart';
 
 import '../models/loan.dart';
+import '../models/repeat_unit.dart';
 import '../services/database_service.dart';
 import '../services/notification_service.dart';
 import '../utils/amount_input_formatter.dart';
@@ -23,9 +24,11 @@ class _LoanFormPageState extends State<LoanFormPage> {
   final _bankController = TextEditingController();
   final _amountController = TextEditingController();
   final _countController = TextEditingController();
+  final _repeatCountController = TextEditingController(text: '1');
   final _descriptionController = TextEditingController();
 
   late Jalali _startDate;
+  RepeatUnit _repeatUnit = RepeatUnit.month;
   bool _saving = false;
 
   bool get _isEditing => widget.loan != null;
@@ -43,6 +46,9 @@ class _LoanFormPageState extends State<LoanFormPage> {
         );
       }
       _countController.text = loan.installmentCount.toString();
+      _repeatCountController.text =
+          '${loan.repeatCount < 1 ? 1 : loan.repeatCount}';
+      _repeatUnit = loan.repeatUnit;
       _descriptionController.text = loan.description ?? '';
       _startDate = loan.startJalali;
     } else {
@@ -56,6 +62,7 @@ class _LoanFormPageState extends State<LoanFormPage> {
     _bankController.dispose();
     _amountController.dispose();
     _countController.dispose();
+    _repeatCountController.dispose();
     _descriptionController.dispose();
     super.dispose();
   }
@@ -107,6 +114,9 @@ class _LoanFormPageState extends State<LoanFormPage> {
 
     final count =
         int.parse(JalaliUtils.toEnglishDigits(_countController.text.trim()));
+    final repeatCount = int.parse(
+      JalaliUtils.toEnglishDigits(_repeatCountController.text.trim()),
+    );
     final amount = _parseAmount(_amountController.text);
     final description = _descriptionController.text.trim();
 
@@ -118,6 +128,8 @@ class _LoanFormPageState extends State<LoanFormPage> {
       startMonth: _startDate.month,
       startDay: _startDate.day,
       installmentCount: count,
+      repeatCount: repeatCount,
+      repeatUnit: _repeatUnit,
       amount: amount,
       description: description.isEmpty ? null : description,
       createdAt: widget.loan?.createdAt,
@@ -237,6 +249,53 @@ class _LoanFormPageState extends State<LoanFormPage> {
               },
             ),
             const SizedBox(height: 16),
+            // دوره تکرار سررسیدها: هر چند ساعت/روز/هفته/ماه
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  flex: 2,
+                  child: TextFormField(
+                    controller: _repeatCountController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'هر چند',
+                      hintText: 'مثلاً: 3',
+                    ),
+                    textInputAction: TextInputAction.next,
+                    validator: (value) {
+                      final count = int.tryParse(
+                          JalaliUtils.toEnglishDigits(value ?? ''));
+                      if (count == null || count < 1 || count > 365) {
+                        return 'بین ۱ تا ۳۶۵';
+                      }
+                      return null;
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 3,
+                  child: DropdownButtonFormField<RepeatUnit>(
+                    initialValue: _repeatUnit,
+                    decoration: const InputDecoration(labelText: 'واحد تکرار'),
+                    items: [
+                      for (final unit in RepeatUnit.values)
+                        DropdownMenuItem(
+                          value: unit,
+                          child: Text(unit.label),
+                        ),
+                    ],
+                    onChanged: (unit) {
+                      if (unit != null) {
+                        setState(() => _repeatUnit = unit);
+                      }
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
             TextFormField(
               controller: _amountController,
               keyboardType: TextInputType.number,
@@ -260,8 +319,9 @@ class _LoanFormPageState extends State<LoanFormPage> {
             ),
             const SizedBox(height: 8),
             Text(
-              'اقساط به‌صورت ماهانه از تاریخ شروع محاسبه می‌شوند؛ '
-              'در روز سررسید هر قسط، نوتیفیکیشن یادآوری ارسال می‌شود.',
+              'سررسیدها بر اساس دوره تکرار انتخابی از تاریخ شروع محاسبه '
+              'می‌شوند؛ مثلاً با انتخاب «هر 3 روز» هر ۳ روز یک قسط در نظر '
+              'گرفته می‌شود. در روز سررسید، نوتیفیکیشن یادآوری ارسال می‌شود.',
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ],

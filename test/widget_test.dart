@@ -5,6 +5,7 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart'
     show databaseFactoryFfiNoIsolate, sqfliteFfiInit;
 import 'package:vaam/main.dart';
 import 'package:vaam/models/loan.dart';
+import 'package:vaam/models/repeat_unit.dart';
 import 'package:vaam/services/database_service.dart';
 import 'package:vaam/services/settings_service.dart';
 
@@ -170,5 +171,47 @@ void main() {
     await tester.tap(find.byIcon(Icons.close));
     await tester.pumpAndSettle();
     expect(find.text('وام آلفا'), findsOneWidget);
+  });
+
+  testWidgets('loan form creates loan with custom repeat interval', (
+    tester,
+  ) async {
+    await pumpApp(tester);
+
+    // باز کردن فرم وام جدید
+    await tester.tap(find.text('وام جدید'));
+    await tester.pumpAndSettle();
+
+    // پر کردن فیلدها: نام، بانک، تعداد اقساط و دوره تکرار (هر ۳ روز)
+    final fields = find.byType(TextFormField);
+    await tester.enterText(fields.at(0), 'وام تکرار ۳ روزه');
+    await tester.enterText(fields.at(1), 'بانک تست');
+    await tester.enterText(fields.at(2), '4'); // تعداد اقساط
+    await tester.enterText(fields.at(3), '3'); // هر چند
+
+    // انتخاب واحد «روز» از فهرست
+    await tester.tap(find.byType(DropdownButtonFormField<RepeatUnit>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('روز').last);
+    await tester.pumpAndSettle();
+
+    // ذخیره
+    await tester.tap(find.text('ذخیره'));
+    await tester.pumpAndSettle();
+
+    // بررسی وام و اقساط تولیدشده در دیتابیس
+    final loans = await DatabaseService.instance.getLoans();
+    final loan = loans.firstWhere((l) => l.name == 'وام تکرار ۳ روزه');
+    expect(loan.repeatUnit, RepeatUnit.day);
+    expect(loan.repeatCount, 3);
+    final items = await DatabaseService.instance.getInstallments(loan.id!);
+    expect(items, hasLength(4));
+    for (var i = 1; i < items.length; i++) {
+      expect(
+        DateTime.parse(items[i].dueDate)
+            .difference(DateTime.parse(items[i - 1].dueDate)),
+        const Duration(days: 3),
+      );
+    }
   });
 }
