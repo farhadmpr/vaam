@@ -5,6 +5,7 @@ import '../models/loan.dart';
 import '../models/repeat_unit.dart';
 import '../services/database_service.dart';
 import '../services/notification_service.dart';
+import '../services/settings_service.dart';
 import '../utils/amount_input_formatter.dart';
 import '../utils/jalali_utils.dart';
 
@@ -31,11 +32,21 @@ class _LoanFormPageState extends State<LoanFormPage> {
   RepeatUnit _repeatUnit = RepeatUnit.month;
   bool _saving = false;
 
+  /// یادآوری نوتیفیکیشن این وام و ساعت آن
+  bool _notifyEnabled = true;
+  int _notifyHour = Loan.defaultNotifyHour;
+  int _notifyMinute = Loan.defaultNotifyMinute;
+
+  /// وضعیت «کلید اصلی» نوتیفیکیشن‌ها در صفحه تنظیمات (فقط برای نمایش هشدار)
+  bool _globalNotificationsEnabled = true;
+
   bool get _isEditing => widget.loan != null;
 
   @override
   void initState() {
     super.initState();
+    _globalNotificationsEnabled =
+        SettingsService.instance.notificationsEnabled;
     final loan = widget.loan;
     if (loan != null) {
       _nameController.text = loan.name;
@@ -51,6 +62,9 @@ class _LoanFormPageState extends State<LoanFormPage> {
       _repeatUnit = loan.repeatUnit;
       _descriptionController.text = loan.description ?? '';
       _startDate = loan.startJalali;
+      _notifyEnabled = loan.notifyEnabled;
+      _notifyHour = loan.notifyHour;
+      _notifyMinute = loan.notifyMinute;
     } else {
       _startDate = Jalali.now();
     }
@@ -80,6 +94,19 @@ class _LoanFormPageState extends State<LoanFormPage> {
     if (picked != null) {
       setState(() => _startDate = picked);
     }
+  }
+
+  /// انتخاب ساعت یادآوری اقساط همین وام
+  Future<void> _pickNotifyTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(hour: _notifyHour, minute: _notifyMinute),
+    );
+    if (picked == null) return;
+    setState(() {
+      _notifyHour = picked.hour;
+      _notifyMinute = picked.minute;
+    });
   }
 
   /// پارس مبلغ با پشتیبانی از ارقام فارسی و جداکننده هزارگان
@@ -132,6 +159,9 @@ class _LoanFormPageState extends State<LoanFormPage> {
       repeatUnit: _repeatUnit,
       amount: amount,
       description: description.isEmpty ? null : description,
+      notifyEnabled: _notifyEnabled,
+      notifyHour: _notifyHour,
+      notifyMinute: _notifyMinute,
       createdAt: widget.loan?.createdAt,
     );
 
@@ -321,10 +351,54 @@ class _LoanFormPageState extends State<LoanFormPage> {
             Text(
               'سررسیدها بر اساس دوره تکرار انتخابی از تاریخ شروع محاسبه '
               'می‌شوند؛ مثلاً با انتخاب «هر 3 روز» هر ۳ روز یک قسط در نظر '
-              'گرفته می‌شود. ساعت نمایش نوتیفیکیشن یادآوری برای همه اقساط '
-              'از «تنظیمات» تعیین می‌شود.',
+              'گرفته می‌شود.',
               style: Theme.of(context).textTheme.bodySmall,
             ),
+            const SizedBox(height: 12),
+            // یادآوری نوتیفیکیشن مخصوص همین وام
+            Card(
+              margin: EdgeInsets.zero,
+              child: Column(
+                children: [
+                  SwitchListTile(
+                    secondary:
+                        const Icon(Icons.notifications_active_outlined),
+                    title: const Text('نوتیفیکیشن یادآوری اقساط'),
+                    subtitle: Text(
+                      _notifyEnabled
+                          ? 'نمایش نوتیفیکیشن در روز سررسید هر قسط'
+                          : 'برای اقساط این وام نوتیفیکیشنی ارسال نمی‌شود',
+                    ),
+                    value: _notifyEnabled,
+                    onChanged: (value) =>
+                        setState(() => _notifyEnabled = value),
+                  ),
+                  if (_notifyEnabled) ...[
+                    const Divider(height: 1),
+                    ListTile(
+                      leading: const Icon(Icons.schedule),
+                      title: const Text('ساعت نمایش نوتیفیکیشن'),
+                      subtitle: Text(
+                        JalaliUtils.formatTime(_notifyHour, _notifyMinute),
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      trailing: const Icon(Icons.edit_outlined),
+                      onTap: _pickNotifyTime,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            if (_notifyEnabled && !_globalNotificationsEnabled) ...[
+              const SizedBox(height: 8),
+              Text(
+                '«یادآوری سررسید اقساط» در صفحه تنظیمات خاموش است؛ تا زمانی '
+                'که آن را روشن نکنید هیچ نوتیفیکیشنی ارسال نمی‌شود.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+              ),
+            ],
           ],
         ),
       ),

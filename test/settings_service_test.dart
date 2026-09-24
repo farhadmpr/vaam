@@ -41,4 +41,16 @@ void main() {
     await SettingsService.instance.load();
     expect(SettingsService.instance.homeLimit, SettingsService.minHomeLimit);
   });
+
+  test('master notification switch persists after save and reload', () async {
+    await SettingsService.instance.load();
+    expect(SettingsService.instance.notificationsEnabled, isTrue);
+
+    SettingsService.instance.notificationsEnabled = false;
+    await SettingsService.instance.save();
+
+    // شبیه‌سازی اجرای دوباره برنامه
+    await SettingsService.instance.load();
+    expect(SettingsService.instance.notificationsEnabled, isFalse);
+  });
 }

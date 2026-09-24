@@ -148,7 +148,9 @@ class NotificationService {
   /// زمان‌بندی مجدد تمام نوتیفیکیشن‌ها بر اساس اقساط پرداخت‌نشده و تنظیمات
   ///
   /// برای هر قسط پرداخت‌نشده‌ای که سررسید آن در آینده است، یک نوتیفیکیشن
-  /// در «روز سررسید + ساعت تنظیم‌شده» زمان‌بندی می‌شود.
+  /// در «روز سررسید + ساعت یادآوری همان وام» زمان‌بندی می‌شود. وام‌هایی که
+  /// یادآوری آن‌ها خاموش است (`Loan.notifyEnabled == false`) نوتیفیکیشنی
+  /// ندارند.
   Future<void> rescheduleAll() async {
     if (!_initialized) return;
 
@@ -165,14 +167,12 @@ class NotificationService {
     var scheduled = 0;
 
     for (final item in unpaid) {
+      // یادآوری این وام خاموش است
+      if (!item.loan.notifyEnabled) continue;
+
       final due = item.installment.dueDateTime;
-      final notifyAt = DateTime(
-        due.year,
-        due.month,
-        due.day,
-        settings.notifyHour,
-        settings.notifyMinute,
-      );
+      // روز سررسید در ساعتی که کاربر برای همین وام تعیین کرده است
+      final notifyAt = item.loan.notifyTimeFor(due);
       // سررسید گذشته در برنامه نمایش داده می‌شود و نوتیفیکیشن ندارد
       if (!notifyAt.isAfter(now)) continue;
       if (scheduled >= maxScheduled) break;

@@ -36,7 +36,12 @@ void main() {
 
   test('backup json round trip preserves all data', () async {
     final loanA = await DatabaseService.instance.createLoan(
-      _loan('وام الف', count: 3),
+      _loan('وام الف', count: 3).copyWith(
+        // تنظیمات یادآوری مخصوص این وام هم باید در پشتیبان حفظ شود
+        notifyEnabled: false,
+        notifyHour: 20,
+        notifyMinute: 15,
+      ),
     );
     await DatabaseService.instance.createLoan(_loan('وام ب', count: 2));
 
@@ -44,7 +49,6 @@ void main() {
     final installmentsA =
         await DatabaseService.instance.getInstallments(loanA);
     await DatabaseService.instance.setInstallmentPaid(installmentsA[0].id!, true);
-
     // ساخت پشتیبان
     final json = await BackupService.instance.buildBackupJson();
     final map = jsonDecode(json) as Map<String, dynamic>;
@@ -71,6 +75,15 @@ void main() {
     expect(restoredA, hasLength(3));
     expect(restoredA[0].isPaid, isTrue);
     expect(restoredA[1].isPaid, isFalse);
+
+    // تنظیمات یادآوری هر وام هم باید برگشته باشد
+    final restoredLoanA = loans.firstWhere((l) => l.name == 'وام الف');
+    expect(restoredLoanA.notifyEnabled, isFalse);
+    expect(restoredLoanA.notifyHour, 20);
+    expect(restoredLoanA.notifyMinute, 15);
+    final restoredLoanB = loans.firstWhere((l) => l.name == 'وام ب');
+    expect(restoredLoanB.notifyEnabled, isTrue);
+    expect(restoredLoanB.notifyHour, Loan.defaultNotifyHour);
 
     final unpaid = await DatabaseService.instance.getUnpaidInstallments();
     expect(unpaid, hasLength(4));

@@ -6,6 +6,10 @@ import 'repeat_unit.dart';
 
 /// مدل وام بانکی
 class Loan {
+  /// ساعت/دقیقه پیش‌فرض یادآوری اقساط (۹ صبح) برای وام‌های جدید
+  static const int defaultNotifyHour = 9;
+  static const int defaultNotifyMinute = 0;
+
   final int? id;
 
   /// نام وام (باید یکتا باشد)
@@ -34,6 +38,15 @@ class Loan {
   /// توضیحات (اختیاری)
   final String? description;
 
+  /// آیا برای اقساط این وام نوتیفیکیشن یادآوری نمایش داده شود
+  final bool notifyEnabled;
+
+  /// ساعت یادآوری اقساط این وام (۲۴ ساعته)
+  final int notifyHour;
+
+  /// دقیقه یادآوری اقساط این وام
+  final int notifyMinute;
+
   final String? createdAt;
 
   const Loan({
@@ -48,10 +61,26 @@ class Loan {
     this.repeatUnit = RepeatUnit.month,
     this.amount,
     this.description,
+    this.notifyEnabled = true,
+    this.notifyHour = defaultNotifyHour,
+    this.notifyMinute = defaultNotifyMinute,
     this.createdAt,
   });
 
   Jalali get startJalali => Jalali(startYear, startMonth, startDay);
+
+  /// برچسب ساعت یادآوری این وام (مثل «۰۹:۳۰»)
+  String get notifyTimeLabel => JalaliUtils.formatTime(notifyHour, notifyMinute);
+
+  /// لحظه ارسال یادآوری برای قسطی با سررسید [dueDate]:
+  /// روزِ سررسید در «ساعت یادآوری همین وام»
+  DateTime notifyTimeFor(DateTime dueDate) => DateTime(
+        dueDate.year,
+        dueDate.month,
+        dueDate.day,
+        notifyHour,
+        notifyMinute,
+      );
 
   /// برچسب خوانا برای دوره تکرار (مثل «هر ۳ روز» یا «هر ماه»)
   String get repeatLabel {
@@ -82,6 +111,9 @@ class Loan {
       repeatUnit: RepeatUnit.fromName(map['repeat_unit'] as String?),
       amount: (map['amount'] as num?)?.toDouble(),
       description: map['description'] as String?,
+      notifyEnabled: (map['notify_enabled'] as int?) != 0,
+      notifyHour: (map['notify_hour'] as int?) ?? defaultNotifyHour,
+      notifyMinute: (map['notify_minute'] as int?) ?? defaultNotifyMinute,
       createdAt: map['created_at'] as String?,
     );
   }
@@ -101,6 +133,9 @@ class Loan {
       'description': (description == null || description!.trim().isEmpty)
           ? null
           : description!.trim(),
+      'notify_enabled': notifyEnabled ? 1 : 0,
+      'notify_hour': notifyHour.clamp(0, 23),
+      'notify_minute': notifyMinute.clamp(0, 59),
       if (createdAt != null) 'created_at': createdAt,
     };
   }
@@ -119,6 +154,9 @@ class Loan {
     bool clearAmount = false,
     String? description,
     bool clearDescription = false,
+    bool? notifyEnabled,
+    int? notifyHour,
+    int? notifyMinute,
     String? createdAt,
   }) {
     return Loan(
@@ -135,6 +173,9 @@ class Loan {
       description: clearDescription
           ? null
           : (description ?? this.description),
+      notifyEnabled: notifyEnabled ?? this.notifyEnabled,
+      notifyHour: notifyHour ?? this.notifyHour,
+      notifyMinute: notifyMinute ?? this.notifyMinute,
       createdAt: createdAt ?? this.createdAt,
     );
   }

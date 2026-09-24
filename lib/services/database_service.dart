@@ -1,12 +1,14 @@
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:shamsi_date/shamsi_date.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../models/installment.dart';
 import '../models/loan.dart';
 import '../models/repeat_unit.dart';
 import '../utils/jalali_utils.dart';
+import 'settings_service.dart';
 
 /// آمار پیشرفت پرداخت یک وام
 class LoanProgress {
@@ -25,7 +27,7 @@ class DatabaseService {
   static final DatabaseService instance = DatabaseService._();
 
   static const String _dbName = 'vaam.db';
-  static const int _dbVersion = 2;
+  static const int _dbVersion = 3;
 
   Database? _db;
 
@@ -35,6 +37,13 @@ class DatabaseService {
   @visibleForTesting
   void useInMemoryDatabaseForTest() {
     _debugPathOverride = inMemoryDatabasePath;
+  }
+
+  /// فقط برای تست: استفاده از دیتابیس موجود در مسیر دلخواه
+  /// (برای بررسی مهاجرت نسخه‌های قدیمی)
+  @visibleForTesting
+  void useDatabasePathForTest(String path) {
+    _debugPathOverride = path;
   }
 
   Future<Database> get database async {
@@ -78,6 +87,9 @@ class DatabaseService {
             repeat_unit TEXT NOT NULL DEFAULT 'month',
             amount REAL,
             description TEXT,
+            notify_enabled INTEGER NOT NULL DEFAULT 1,
+            notify_hour INTEGER NOT NULL DEFAULT 9,
+            notify_minute INTEGER NOT NULL DEFAULT 0,
             created_at TEXT NOT NULL
           )
         ''');
@@ -110,6 +122,42 @@ class DatabaseService {
       await db.execute(
         "ALTER TABLE loans ADD COLUMN repeat_unit TEXT NOT NULL DEFAULT 'month'",
       );
+    }
+    if (oldVersion < 3) {
+      // از این نسخه، فعال بودن یادآوری و ساعت آن برای هر وام جداگانه ذخیره
+      // می‌شود. ساعتِ تنظیماتِ سراسریِ نسخه‌های قبلی به عنوان مقدار اولیه
+      // وام‌های موجود منتقل می‌شود تا انتخاب قبلی کاربر حفظ شود.
+      final legacy = await _legacyNotifyTime();
+      await db.execute(
+        'ALTER TABLE loans ADD COLUMN notify_enabled INTEGER NOT NULL DEFAULT 1',
+      );
+      await db.execute(
+        'ALTER TABLE loans ADD COLUMN notify_hour '
+        'INTEGER NOT NULL DEFAULT ${legacy.$1}',
+      );
+      await db.execute(
+        'ALTER TABLE loans ADD COLUMN notify_minute '
+        'INTEGER NOT NULL DEFAULT ${legacy.$2}',
+      );
+    }
+  }
+
+  /// ساعت یادآوریِ تنظیماتِ سراسری نسخه‌های پیشین برنامه (پیش‌فرض: ۹:۰۰)
+  static Future<(int, int)> _legacyNotifyTime() async {
+    try {
+      final sp = await SharedPreferences.getInstance();
+      final hour =
+          (sp.getInt(SettingsService.legacyNotifyHourKey) ??
+                  Loan.defaultNotifyHour)
+              .clamp(0, 23);
+      final minute =
+          (sp.getInt(SettingsService.legacyNotifyMinuteKey) ??
+                  Loan.defaultNotifyMinute)
+              .clamp(0, 59);
+      return (hour, minute);
+    } catch (_) {
+      // اگر تنظیمات در دسترس نبود، مقدار پیش‌فرض استفاده می‌شود
+      return (Loan.defaultNotifyHour, Loan.defaultNotifyMinute);
     }
   }
 
@@ -387,9 +435,10 @@ class DatabaseService {
     _db = null;
     await existing?.close();
     final pathOverride = _debugPathOverride;
-    if (pathOverride != null) return; // دیتابیس درون‌حافظه‌ای است
-    final dir = await getDatabasesPath();
-    final path = p.join(dir, _dbName);
+    if (pathOverride != null && pathOverride == inMemoryDatabasePath) {
+      return; // دیتابیس درون‌حافظه‌ای است
+    }
+    final path = pathOverride ?? p.join(await getDatabasesPath(), _dbName);
     if (await databaseExists(path)) {
       await deleteDatabase(path);
     }

@@ -35,6 +35,16 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  /// اسکرول فرم ثبت وام تا بخش‌های پایین (تنظیمات یادآوری) ساخته شوند
+  Future<void> scrollFormToBottom(WidgetTester tester) async {
+    final listView = find.descendant(
+      of: find.byType(Form),
+      matching: find.byType(ListView),
+    );
+    await tester.drag(listView, const Offset(0, -1200));
+    await tester.pumpAndSettle();
+  }
+
   testWidgets('app builds and shows the home page', (tester) async {
     await tester.pumpWidget(const VaamApp());
     await tester.pump();
@@ -213,5 +223,73 @@ void main() {
         const Duration(days: 3),
       );
     }
+  });
+
+  testWidgets('loan form sets notification on/off and time per loan', (
+    tester,
+  ) async {
+    await pumpApp(tester);
+
+    await tester.tap(find.text('وام جدید'));
+    await tester.pumpAndSettle();
+
+    final fields = find.byType(TextFormField);
+    await tester.enterText(fields.at(0), 'وام با یادآوری');
+    await tester.enterText(fields.at(1), 'بانک تست');
+    await tester.enterText(fields.at(2), '2');
+
+    // پیش‌فرض: یادآوری فعال است و ساعت پیش‌فرض (۹:۰۰) نمایش داده می‌شود
+    await scrollFormToBottom(tester);
+    expect(find.text('نوتیفیکیشن یادآوری اقساط'), findsOneWidget);
+    expect(find.text('ساعت نمایش نوتیفیکیشن'), findsOneWidget);
+    expect(find.text('۰۹:۰۰'), findsOneWidget);
+
+    // خاموش کردن یادآوری: ردیف ساعت پنهان می‌شود
+    await tester.tap(find.text('نوتیفیکیشن یادآوری اقساط'));
+    await tester.pumpAndSettle();
+    expect(find.text('ساعت نمایش نوتیفیکیشن'), findsNothing);
+
+    await tester.tap(find.text('ذخیره'));
+    await tester.pumpAndSettle();
+
+    final loans = await DatabaseService.instance.getLoans();
+    final loan = loans.firstWhere((l) => l.name == 'وام با یادآوری');
+    expect(loan.notifyEnabled, isFalse);
+
+    // روشن کردن دوباره یادآوری و ثبت وام دوم
+    await tester.tap(find.text('وام جدید'));
+    await tester.pumpAndSettle();
+    final newFields = find.byType(TextFormField);
+    await tester.enterText(newFields.at(0), 'وام دوم');
+    await tester.enterText(newFields.at(1), 'بانک تست');
+    await tester.enterText(newFields.at(2), '1');
+    await scrollFormToBottom(tester);
+    expect(find.text('۰۹:۰۰'), findsOneWidget);
+    await tester.tap(find.text('ذخیره'));
+    await tester.pumpAndSettle();
+
+    final second = (await DatabaseService.instance.getLoans())
+        .firstWhere((l) => l.name == 'وام دوم');
+    expect(second.notifyEnabled, isTrue);
+    expect(second.notifyHour, Loan.defaultNotifyHour);
+    expect(second.notifyMinute, Loan.defaultNotifyMinute);
+  });
+
+  testWidgets('settings page has no global notification time field', (
+    tester,
+  ) async {
+    await pumpApp(tester);
+
+    await tester.tap(find.byIcon(Icons.settings_outlined));
+    await tester.pumpAndSettle();
+
+    // کلید اصلی یادآوری وجود دارد…
+    expect(find.text('یادآوری سررسید اقساط'), findsOneWidget);
+    // …ولی تنظیم ساعت سراسری حذف شده است
+    expect(find.text('ساعت نمایش نوتیفیکیشن'), findsNothing);
+
+    // تنظیمات دیگر سر جای خود هستند
+    expect(find.text('نوع نوتیفیکیشن'), findsOneWidget);
+    expect(find.text('ارسال نوتیفیکیشن آزمایشی'), findsOneWidget);
   });
 }

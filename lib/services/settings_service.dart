@@ -19,22 +19,26 @@ class SettingsService {
   static final SettingsService instance = SettingsService._();
 
   static const String _keyEnabled = 'notify_enabled';
-  static const String _keyHour = 'notify_hour';
-  static const String _keyMinute = 'notify_minute';
   static const String _keyType = 'notify_type';
   static const String _keyHomeLimit = 'home_limit';
+
+  /// کلیدهای قدیمیِ «ساعت نوتیفیکیشن سراسری» (نسخه‌های پیشین برنامه).
+  /// از این نسخه، فعال بودن یادآوری و ساعت آن برای هر وام جداگانه در خودِ
+  /// وام ذخیره می‌شود (`Loan.notifyEnabled` / `notifyHour` / `notifyMinute`)
+  /// و این کلیدها فقط برای مهاجرت یک‌بارهٔ داده‌ها در
+  /// `DatabaseService._onUpgrade` خوانده می‌شوند.
+  static const String legacyNotifyHourKey = 'notify_hour';
+  static const String legacyNotifyMinuteKey = 'notify_minute';
 
   /// حداکثر تعداد اقساط نمایش‌داده‌شده در صفحه اصلی
   static const int defaultHomeLimit = 10;
   static const int minHomeLimit = 1;
   static const int maxHomeLimit = 200;
 
-  /// آیا نوتیفیکیشن فعال است
+  /// کلید اصلی همه یادآوری‌ها؛ با خاموش شدن آن هیچ نوتیفیکیشنی برای هیچ
+  /// وامی زمان‌بندی نمی‌شود. فعال/غیرفعال بودن و ساعت یادآوری هر وام در
+  /// فرم ثبت/ویرایش همان وام تعیین می‌شود.
   bool notificationsEnabled = true;
-
-  /// ساعت نمایش نوتیفیکیشن (۲۴ ساعته)
-  int notifyHour = 9;
-  int notifyMinute = 0;
 
   /// نوع نوتیفیکیشن
   NotificationType notificationType = NotificationType.systemDefault;
@@ -45,8 +49,6 @@ class SettingsService {
   Future<void> load() async {
     final sp = await SharedPreferences.getInstance();
     notificationsEnabled = sp.getBool(_keyEnabled) ?? true;
-    notifyHour = sp.getInt(_keyHour) ?? 9;
-    notifyMinute = sp.getInt(_keyMinute) ?? 0;
     final typeName = sp.getString(_keyType);
     notificationType = NotificationType.values.firstWhere(
       (type) => type.name == typeName,
@@ -59,8 +61,6 @@ class SettingsService {
   Future<void> save() async {
     final sp = await SharedPreferences.getInstance();
     await sp.setBool(_keyEnabled, notificationsEnabled);
-    await sp.setInt(_keyHour, notifyHour.clamp(0, 23));
-    await sp.setInt(_keyMinute, notifyMinute.clamp(0, 59));
     await sp.setString(_keyType, notificationType.name);
     await sp.setInt(
       _keyHomeLimit,

@@ -204,6 +204,13 @@ class _LoansPageState extends State<LoansPage> {
           children: [
             Text(loan.bank),
             const SizedBox(height: 4),
+            Text(
+              loan.notifyEnabled
+                  ? 'یادآوری: ساعت ${loan.notifyTimeLabel}'
+                  : 'یادآوری خاموش',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 4),
             Row(
               children: [
                 Expanded(

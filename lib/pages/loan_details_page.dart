@@ -151,6 +151,12 @@ class _LoanDetailsPageState extends State<LoanDetailsPage> {
             _infoRow('تاریخ شروع اقساط', JalaliUtils.formatJalali(loan.startJalali)),
             _infoRow('دوره تکرار', loan.repeatLabel),
             _infoRow(
+              'یادآوری نوتیفیکیشن',
+              loan.notifyEnabled
+                  ? 'فعال — ساعت ${loan.notifyTimeLabel}'
+                  : 'غیرفعال',
+            ),
+            _infoRow(
               'تعداد اقساط',
               '${JalaliUtils.toPersianDigits('${loan.installmentCount}')} قسط',
             ),

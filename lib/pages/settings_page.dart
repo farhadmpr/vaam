@@ -27,20 +27,6 @@ class _SettingsPageState extends State<SettingsPage> {
     await _apply();
   }
 
-  Future<void> _pickTime() async {
-    final picked = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay(
-        hour: _settings.notifyHour,
-        minute: _settings.notifyMinute,
-      ),
-    );
-    if (picked == null) return;
-    _settings.notifyHour = picked.hour;
-    _settings.notifyMinute = picked.minute;
-    await _apply();
-  }
-
   Future<void> _setType(NotificationType type) async {
     _settings.notificationType = type;
     await _apply();
@@ -225,21 +211,13 @@ class _SettingsPageState extends State<SettingsPage> {
           const Divider(),
           SwitchListTile(
             secondary: const Icon(Icons.notifications_active_outlined),
-            title: const Text('نمایش نوتیفیکیشن'),
-            subtitle: const Text('یادآوری سررسید اقساط'),
+            title: const Text('یادآوری سررسید اقساط'),
+            subtitle: const Text(
+              'کلید اصلی همه یادآوری‌ها؛ فعال بودن و ساعت نوتیفیکیشن هر وام '
+              'در فرم همان وام تعیین می‌شود',
+            ),
             value: enabled,
             onChanged: _toggleEnabled,
-          ),
-          ListTile(
-            enabled: enabled,
-            leading: const Icon(Icons.schedule),
-            title: const Text('ساعت نمایش نوتیفیکیشن'),
-            subtitle: Text(
-              JalaliUtils.formatTime(_settings.notifyHour, _settings.notifyMinute),
-              style: theme.textTheme.titleMedium,
-            ),
-            trailing: const Icon(Icons.edit_outlined),
-            onTap: enabled ? _pickTime : null,
           ),
           const Divider(),
           Padding(
@@ -293,9 +271,11 @@ class _SettingsPageState extends State<SettingsPage> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Text(
-              'نوتیفیکیشن هر قسط در روز سررسید و ساعت انتخاب‌شده بالا نمایش '
-              'داده می‌شود. سررسیدهای گذشته نوتیفیکیشن ندارند و در صفحه اصلی '
-              'با برچسب «عقب‌افتاده» نمایش داده می‌شوند.',
+              'فعال بودن یادآوری و ساعت نمایش آن برای هر وام در فرم ثبت/ویرایش '
+              'همان وام تعیین می‌شود. نوتیفیکیشن هر قسط در روز سررسید و در '
+              'ساعت تعیین‌شدهٔ همان وام نمایش داده می‌شود. سررسیدهای گذشته '
+              'نوتیفیکیشن ندارند و در صفحه اصلی با برچسب «عقب‌افتاده» نمایش '
+              'داده می‌شوند.',
               style: theme.textTheme.bodySmall,
             ),
           ),

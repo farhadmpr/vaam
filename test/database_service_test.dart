@@ -1,4 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:path/path.dart' as p;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart'
     show databaseFactoryFfiNoIsolate, sqfliteFfiInit;
@@ -6,6 +10,7 @@ import 'package:shamsi_date/shamsi_date.dart';
 import 'package:vaam/models/loan.dart';
 import 'package:vaam/models/repeat_unit.dart';
 import 'package:vaam/services/database_service.dart';
+import 'package:vaam/services/settings_service.dart';
 
 Loan _loan(
   String name, {
@@ -25,6 +30,8 @@ Loan _loan(
 }
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   // پیاده‌سازی ffi درون‌حافظه‌ای: هر فایل تست دیتابیس مجزای خودش را دارد
   // و تداخلی با فایل‌های تست دیگر (که موازی اجرا می‌شوند) ایجاد نمی‌کند
   sqfliteFfiInit();
@@ -170,6 +177,126 @@ void main() {
     expect(RepeatUnit.fromName('month'), RepeatUnit.month);
     expect(RepeatUnit.fromName('unknown'), RepeatUnit.month);
     expect(RepeatUnit.fromName(null), RepeatUnit.month);
+  });
+
+  test('notification settings are stored per loan', () async {
+    // وام با ساعت دلخواه ۲۱:۳۰
+    final id = await DatabaseService.instance.createLoan(
+      _loan('وام با یادآوری').copyWith(notifyHour: 21, notifyMinute: 30),
+    );
+    final loan = await DatabaseService.instance.getLoan(id);
+    expect(loan!.notifyEnabled, isTrue);
+    expect(loan.notifyHour, 21);
+    expect(loan.notifyMinute, 30);
+    expect(loan.notifyTimeLabel, '۲۱:۳۰');
+
+    // لحظه یادآوری = روز سررسید در ساعتِ همین وام
+    expect(
+      loan.notifyTimeFor(DateTime(2025, 9, 6, 8, 15)),
+      DateTime(2025, 9, 6, 21, 30),
+    );
+
+    // وام با یادآوری خاموش
+    final offId = await DatabaseService.instance.createLoan(
+      _loan('وام بدون یادآوری').copyWith(notifyEnabled: false),
+    );
+    final off = await DatabaseService.instance.getLoan(offId);
+    expect(off!.notifyEnabled, isFalse);
+    // وام‌های بدون ساعت دلخواه، ساعت پیش‌فرض دارند
+    expect(off.notifyHour, Loan.defaultNotifyHour);
+    expect(off.notifyMinute, Loan.defaultNotifyMinute);
+
+    // ویرایش وام: ساعت یادآوری تغییر می‌کند
+    await DatabaseService.instance
+        .updateLoan(loan.copyWith(notifyHour: 8, notifyMinute: 5));
+    final edited = await DatabaseService.instance.getLoan(id);
+    expect(edited!.notifyHour, 8);
+    expect(edited.notifyMinute, 5);
+    expect(edited.notifyTimeLabel, '۰۸:۰۵');
+  });
+
+  test('upgrade from v2 adds per-loan notification columns', () async {
+    // ساعت تنظیمات سراسری نسخه قبلی: ۲۱:۳۰
+    SharedPreferences.setMockInitialValues(<String, Object>{
+      SettingsService.legacyNotifyHourKey: 21,
+      SettingsService.legacyNotifyMinuteKey: 30,
+    });
+
+    final dir = await Directory.systemTemp.createTemp('vaam_migration');
+    final path = p.join(dir.path, 'legacy.db');
+    try {
+      // بستن دیتابیس قبلی و سوئیچ به مسیر فایل legacy
+      // (resetForTest پیش از ساخته شدن فایل اجرا می‌شود تا فایل حذف نشود)
+      DatabaseService.instance.useDatabasePathForTest(path);
+      await DatabaseService.instance.resetForTest();
+
+      // ساخت یک دیتابیس نسخه ۲ با یک وام قدیمی (واحد «ساعت»)
+      final legacy = await databaseFactory.openDatabase(
+        path,
+        options: OpenDatabaseOptions(
+          version: 2,
+          onCreate: (db, version) async {
+            await db.execute('''
+              CREATE TABLE loans (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                bank TEXT NOT NULL,
+                start_year INTEGER NOT NULL,
+                start_month INTEGER NOT NULL,
+                start_day INTEGER NOT NULL,
+                installment_count INTEGER NOT NULL,
+                repeat_count INTEGER NOT NULL DEFAULT 1,
+                repeat_unit TEXT NOT NULL DEFAULT 'month',
+                amount REAL,
+                description TEXT,
+                created_at TEXT NOT NULL
+              )
+            ''');
+            await db.execute('''
+              CREATE TABLE installments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                loan_id INTEGER NOT NULL,
+                number INTEGER NOT NULL,
+                due_date TEXT NOT NULL,
+                is_paid INTEGER NOT NULL DEFAULT 0,
+                paid_at TEXT
+              )
+            ''');
+          },
+        ),
+      );
+      await legacy.insert('loans', {
+        'name': 'وام قدیمی',
+        'bank': 'بانک ملت',
+        'start_year': 1403,
+        'start_month': 5,
+        'start_day': 10,
+        'installment_count': 3,
+        'repeat_count': 8,
+        'repeat_unit': 'hour',
+        'created_at': '2024-01-01T00:00:00.000',
+      });
+      await legacy.close();
+
+      // باز کردن با نسخه جدید برنامه: مهاجرت باید انجام شود
+      final loans = await DatabaseService.instance.getLoans();
+      expect(loans, hasLength(1));
+      final loan = loans.single;
+      // ستون‌های جدید با ساعتِ تنظیماتِ سراسریِ نسخه قبلی پر می‌شوند
+      expect(loan.notifyEnabled, isTrue);
+      expect(loan.notifyHour, 21);
+      expect(loan.notifyMinute, 30);
+      // واحد حذف‌شده «ساعت» به «روز» تبدیل می‌شود
+      expect(loan.repeatUnit, RepeatUnit.day);
+      expect(loan.repeatLabel, 'هر ۸ روز');
+    } finally {
+      // پاک‌سازی و بازگشت به دیتابیس درون‌حافظه‌ای برای تست‌های بعدی
+      await DatabaseService.instance.resetForTest();
+      DatabaseService.instance.useInMemoryDatabaseForTest();
+      await DatabaseService.instance.resetForTest();
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      if (dir.existsSync()) await dir.delete(recursive: true);
+    }
   });
 
   test('loan name must be unique', () async {
