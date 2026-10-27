@@ -3,8 +3,8 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:persian_datetime_picker/persian_datetime_picker.dart';
 
-import 'pages/home_page.dart';
 import 'pages/loan_details_page.dart';
+import 'pages/main_shell_page.dart';
 import 'services/database_service.dart';
 import 'services/notification_service.dart';
 import 'services/settings_service.dart';
@@ -90,7 +90,7 @@ class VaamApp extends StatelessWidget {
         textDirection: TextDirection.rtl,
         child: child ?? const SizedBox.shrink(),
       ),
-      home: const HomePage(),
+      home: const MainShellPage(),
     );
   }
 }
