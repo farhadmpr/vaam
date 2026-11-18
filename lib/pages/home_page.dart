@@ -335,7 +335,11 @@ class _HomePageState extends State<HomePage> {
         ),
         trailing: IconButton(
           tooltip: 'علامت‌گذاری به‌عنوان پرداخت شده',
-          icon: Icon(Icons.check_circle_outline, color: color, size: 28),
+          icon: Icon(
+            Icons.radio_button_unchecked,
+            color: Theme.of(context).colorScheme.primary,
+            size: 28,
+          ),
           onPressed: () => _markPaid(item),
         ),
       ),
