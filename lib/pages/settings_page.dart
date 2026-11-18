@@ -4,6 +4,7 @@ import '../services/backup_service.dart';
 import '../services/notification_service.dart';
 import '../services/settings_service.dart';
 import '../utils/jalali_utils.dart';
+import 'about_page.dart';
 
 /// تنظیمات نوتیفیکیشن
 class SettingsPage extends StatefulWidget {
@@ -249,6 +250,16 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
           ),
           const Divider(height: 32),
+          ListTile(
+            leading: const Icon(Icons.info_outline),
+            title: const Text('درباره ما'),
+            subtitle: const Text('معرفی برنامه، سازنده و سورس باز پروژه'),
+            trailing: const Icon(Icons.chevron_left),
+            onTap: () => Navigator.of(context).push<void>(
+              MaterialPageRoute(builder: (_) => const AboutPage()),
+            ),
+          ),
+          const Divider(),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Text('پشتیبان‌گیری و بازیابی', style: theme.textTheme.titleSmall),
